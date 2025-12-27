@@ -1,4 +1,4 @@
-@import "open-color/open-color.scss";
+@import "../css/open-color-patched.scss";
 @import "../css/variables.module.scss";
 
 .excalidraw {
@@ -38,10 +38,8 @@
     }
 
     &.active {
-      background: var(
-        --color-surface-primary-container,
-        var(--island-bg-color)
-      );
+      background: var(--color-surface-primary-container,
+          var(--island-bg-color));
       border-color: var(--button-active-border, var(--color-primary-darkest));
     }
 

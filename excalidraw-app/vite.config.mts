@@ -1,5 +1,6 @@
 import path from "path";
 import { defineConfig, loadEnv } from "vite";
+// @ts-expect-error: vite-plugin-react type definition missing
 import react from "@vitejs/plugin-react";
 import svgrPlugin from "vite-plugin-svgr";
 import { ViteEjsPlugin } from "vite-plugin-ejs";
@@ -94,6 +95,21 @@ export default defineConfig(({ mode }) => {
           // app precache. en.json and percentages.json are needed for first load
           // or fallback hence not clubbing with locales so first load followed by offline mode works fine. This is how CRA used to work too.
           manualChunks(id) {
+            if (id.includes("node_modules")) {
+              if (
+                id.includes("react") ||
+                id.includes("react-dom") ||
+                id.includes("scheduler")
+              ) {
+                return "vendor-react";
+              }
+              if (id.includes("firebase")) {
+                return "vendor-firebase";
+              }
+              if (id.includes("@sentry")) {
+                return "vendor-sentry";
+              }
+            }
             if (
               id.includes("packages/excalidraw/locales") &&
               id.match(/en.json|percentages.json/) === null
@@ -108,6 +124,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: true,
       // don't auto-inline small assets (i.e. fonts hosted on CDN)
       assetsInlineLimit: 0,
+      chunkSizeWarningLimit: 2000,
     },
     plugins: [
       Sitemap({
@@ -293,5 +310,13 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     publicDir: "../public",
+    css: {
+      preprocessorOptions: {
+        scss: {
+          silenceDeprecations: ["import"],
+        },
+      },
+    },
+
   };
 });

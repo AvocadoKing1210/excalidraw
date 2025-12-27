@@ -1,3 +1,4 @@
+@use "sass:color";
 @import "../css/variables.module.scss";
 
 .excalidraw {
@@ -30,17 +31,19 @@
 
     &:hover {
       .Checkbox-box {
-        background-color: fade-out($oc-blue-1, 0.8);
+        background-color: color.adjust($oc-blue-1, $alpha: -0.8);
       }
     }
 
     &.is-checked {
       .Checkbox-box {
         background-color: #{$oc-blue-1};
+
         svg {
           display: block;
         }
       }
+
       &:hover .Checkbox-box {
         background-color: #{$oc-blue-2};
       }

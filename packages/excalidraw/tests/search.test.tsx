@@ -6,6 +6,7 @@ import {
   DEFAULT_SIDEBAR,
   KEYS,
 } from "@excalidraw/common";
+import { vi } from "vitest";
 
 import type {
   ExcalidrawFrameLikeElement,
@@ -76,7 +77,7 @@ describe("search", () => {
   });
 
   it("should match text and cycle through matches on Enter", async () => {
-    const scrollIntoViewMock = jest.fn();
+    const scrollIntoViewMock = vi.fn();
     window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
 
     API.setElements([
@@ -114,7 +115,7 @@ describe("search", () => {
   });
 
   it("should match text split across multiple lines", async () => {
-    const scrollIntoViewMock = jest.fn();
+    const scrollIntoViewMock = vi.fn();
     window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
 
     API.setElements([

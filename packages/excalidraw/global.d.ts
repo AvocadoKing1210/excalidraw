@@ -86,7 +86,7 @@ declare module "image-blob-reduce" {
     }
 
     interface ImageBlobReduceStatic {
-      new (options?: any): ImageBlobReduce;
+      new(options?: any): ImageBlobReduce;
 
       (options?: any): ImageBlobReduce;
     }
@@ -100,14 +100,14 @@ declare module "image-blob-reduce" {
 }
 
 interface CustomMatchers {
-  toBeNonNaNNumber(): void;
+  toBeNonNaNNumber(): any;
   toCloselyEqualPoints(
     points: readonly [number, number][],
     precision?: number,
-  ): void;
+  ): any;
 }
 
-declare namespace jest {
-  interface Expect extends CustomMatchers {}
-  interface Matchers extends CustomMatchers {}
+declare module "vitest" {
+  interface Assertion<T = any> extends CustomMatchers { }
+  interface AsymmetricMatchersContaining extends CustomMatchers { }
 }

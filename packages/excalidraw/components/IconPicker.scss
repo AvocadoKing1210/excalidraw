@@ -1,13 +1,15 @@
+@use "sass:color";
 @import "../css/variables.module.scss";
 
 .excalidraw {
   .picker {
     padding: 0.5rem;
     background: var(--popup-bg-color);
-    border: 0 solid transparentize($oc-white, 0.75);
+    border: 0 solid color.adjust($oc-white, $alpha: -0.75);
     box-shadow: var(--shadow-island);
     border-radius: 4px;
     position: absolute;
+
     :root[dir="rtl"] & {
       padding: 0.4rem;
     }
@@ -23,6 +25,7 @@
     &:focus-visible {
       outline: transparent;
       background-color: var(--button-gray-2);
+
       & svg {
         opacity: 1;
       }
@@ -77,6 +80,7 @@
     :root[dir="rtl"] & {
       left: 2px;
     }
+
     @include isMobile {
       display: none;
     }
@@ -102,6 +106,7 @@
     .picker-type-elementBackground .picker-keybinding {
       color: $oc-black;
     }
+
     .picker-swatch[aria-label="transparent"] .picker-keybinding {
       color: $oc-black;
     }

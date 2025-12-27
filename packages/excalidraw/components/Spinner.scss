@@ -1,4 +1,4 @@
-@import "open-color/open-color.scss";
+@import "../css/open-color-patched.scss";
 
 $duration: 1.6s;
 
@@ -37,10 +37,12 @@ $duration: 1.6s;
       stroke-dasharray: 1, 300;
       stroke-dashoffset: 0;
     }
+
     50% {
       stroke-dasharray: 150, 300;
       stroke-dashoffset: -200;
     }
+
     100% {
       stroke-dasharray: 1, 300;
       stroke-dashoffset: -280;

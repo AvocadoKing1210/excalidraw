@@ -1,3 +1,4 @@
+@use "sass:color";
 @import "../css/variables.module.scss";
 
 .excalidraw {
@@ -8,7 +9,7 @@
   .context-menu {
     position: relative;
     border-radius: 4px;
-    box-shadow: 0 3px 10px transparentize($oc-black, 0.8);
+    box-shadow: 0 3px 10px color.adjust($oc-black, $alpha: -0.8);
     padding: 0;
     list-style: none;
     user-select: none;
@@ -57,6 +58,7 @@
       justify-self: start;
       margin-inline-end: 20px;
     }
+
     .context-menu-item__shortcut {
       justify-self: end;
       opacity: 0.6;
@@ -73,6 +75,7 @@
       .context-menu-item__label {
         color: var(--popup-bg-color);
       }
+
       background-color: $oc-red-6;
     }
   }

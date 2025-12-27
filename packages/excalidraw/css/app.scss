@@ -1,4 +1,4 @@
-@import "open-color/open-color.scss";
+@import "./open-color-patched.scss";
 
 .visually-hidden {
   position: absolute !important;
@@ -6,7 +6,8 @@
   width: 1px;
   overflow: hidden;
   clip: rect(1px, 1px, 1px, 1px);
-  white-space: nowrap; /* added line */
+  white-space: nowrap;
+  /* added line */
   user-select: none;
 }
 

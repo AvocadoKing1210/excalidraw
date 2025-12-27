@@ -42,7 +42,7 @@ describe("restoreElements", () => {
     const selectionEl = { type: "selection" } as ExcalidrawElement;
     const restoreElements = restore.restoreElements([selectionEl], null);
     expect(restoreElements.length).toBe(0);
-    expect(sizeHelpers.isInvisiblySmallElement).toBeCalledTimes(0);
+    expect(sizeHelpers.isInvisiblySmallElement).toHaveBeenCalledTimes(0);
   });
 
   it("should return empty array when input type is not supported", () => {

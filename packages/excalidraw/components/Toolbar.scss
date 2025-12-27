@@ -1,9 +1,10 @@
-@import "open-color/open-color.scss";
+@import "../css/open-color-patched.scss";
 @import "../css/variables.module.scss";
 
 .excalidraw {
   .App-toolbar {
     &.zen-mode {
+
       .ToolIcon__keybinding,
       .HintViewer {
         display: none;
@@ -40,8 +41,7 @@
 
     &:active {
       background-color: var(--button-hover-bg);
-      box-shadow: 0 0 0 1px
-        var(--button-active-border, var(--color-primary-darkest)) inset;
+      box-shadow: 0 0 0 1px var(--button-active-border, var(--color-primary-darkest)) inset;
     }
 
     &:hover {

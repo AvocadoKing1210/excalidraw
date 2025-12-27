@@ -1,4 +1,4 @@
-@import "open-color/open-color";
+@import "../css/open-color-patched.scss";
 
 .excalidraw {
   .layer-ui__library {
@@ -48,9 +48,11 @@
     &-close.ToolIcon_type_button {
       background-color: $oc-blue-6;
       align-self: flex-end;
+
       &:hover {
         background-color: $oc-blue-8;
       }
+
       .ToolIcon__icon {
         width: auto;
         font-size: 1rem;
@@ -101,6 +103,7 @@
     &:hover {
       background-color: var(--color-brand-hover);
     }
+
     &:active {
       background-color: var(--color-brand-active);
     }
@@ -135,8 +138,10 @@
   .layer-ui__library .library-menu-dropdown-container {
     z-index: 1;
     position: relative;
+
     &--in-heading {
       margin-left: auto;
+
       .dropdown-menu {
         top: 100%;
       }
