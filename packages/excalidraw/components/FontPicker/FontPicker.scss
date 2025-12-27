@@ -7,14 +7,45 @@
     align-items: center;
 
     @include isMobile {
-      max-width: calc(
-        2rem + 4 * var(--default-button-size)
-      ); // 4 gaps + 4 buttons
+      max-width: calc(2rem + 4 * var(--default-button-size)); // 4 gaps + 4 buttons
     }
 
     &--compact {
       display: block;
       grid-template-columns: none;
     }
+  }
+
+  // Remove button for Google fonts - circular background, rightmost position
+  .google-font-remove-btn {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-gray-60);
+    font-size: 16px;
+    font-weight: 300;
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    &:hover {
+      background: var(--color-gray-30);
+      color: var(--color-danger);
+    }
+  }
+
+  // Ensure dropdown items with remove button have proper layout
+  .dropdown-menu.fonts .dropdown-menu-item {
+    position: relative;
+    padding-right: 2rem;
   }
 }

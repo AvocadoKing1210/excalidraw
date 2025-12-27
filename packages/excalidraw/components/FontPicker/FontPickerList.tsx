@@ -19,6 +19,7 @@ import {
 import type { ValueOf } from "@excalidraw/common/utility-types";
 
 import { Fonts } from "../../fonts";
+import { GoogleFontsService } from "../../fonts/GoogleFontsService";
 import { t } from "../../i18n";
 import {
   useApp,
@@ -39,9 +40,11 @@ import {
   FontFamilyHeadingIcon,
   FontFamilyNormalIcon,
   FreedrawIcon,
+  PlusIcon,
 } from "../icons";
 
 import { fontPickerKeyHandler } from "./keyboardNavHandlers";
+import { GoogleFontsBrowser } from "./GoogleFontsBrowser";
 
 import type { JSX } from "react";
 
@@ -101,6 +104,8 @@ export const FontPickerList = React.memo(
     const stylesPanelMode = useStylesPanelMode();
 
     const [searchTerm, setSearchTerm] = useState("");
+    const [showGoogleFontsBrowser, setShowGoogleFontsBrowser] = useState(false);
+    const [installedGoogleFontsVersion, setInstalledGoogleFontsVersion] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
     const allFonts = useMemo(
       () =>
@@ -132,6 +137,26 @@ export const FontPickerList = React.memo(
           ),
       [],
     );
+
+    // Get installed Google Fonts
+    const installedGoogleFonts = useMemo(() => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _version = installedGoogleFontsVersion; // dependency to trigger re-render
+      return GoogleFontsService.getInstalledFonts().map((family) => ({
+        value: GoogleFontsService.getFontId(family),
+        icon: FontFamilyNormalIcon,
+        text: family,
+        isGoogleFont: true,
+      }));
+    }, [installedGoogleFontsVersion]);
+
+    // Load installed Google Fonts on mount (for persistence after browser refresh)
+    useEffect(() => {
+      GoogleFontsService.loadInstalledFonts().then(() => {
+        // Trigger re-render to update the list
+        setInstalledGoogleFontsVersion((v) => v + 1);
+      });
+    }, []);
 
     const sceneFamilies = useMemo(
       () => new Set(fonts.getSceneFamilies()),
@@ -310,12 +335,69 @@ export const FontPickerList = React.memo(
       );
     }
 
-    if (availableFilteredFonts.length) {
+    if (availableFilteredFonts.length || installedGoogleFonts.length) {
       groups.push(
         <DropdownMenuGroup title={t("fontList.availableFonts")} key="group_2">
           {availableFilteredFonts.map((font, index) =>
             renderFont(font, index + sceneFilteredFonts.length),
           )}
+          {/* Installed Google Fonts */}
+          {installedGoogleFonts
+            .filter((font) =>
+              font.text.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+            .map((font, index) => (
+              <DropdownMenuItem
+                key={font.value}
+                icon={font.icon}
+                value={font.value}
+                order={availableFilteredFonts.length + sceneFilteredFonts.length + index}
+                textStyle={{
+                  fontFamily: `"${font.text}", sans-serif`,
+                }}
+                hovered={font.value === hoveredFont?.value}
+                selected={font.value === selectedFontFamily}
+                tabIndex={font.value === selectedFontFamily ? 0 : -1}
+                onClick={() => {
+                  wrappedOnSelect(font.value);
+                }}
+                onMouseMove={() => {
+                  if (hoveredFont?.value !== font.value) {
+                    onHover(font.value);
+                  }
+                }}
+              >
+                {font.text}
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="google-font-remove-btn"
+                  title="Remove font"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    GoogleFontsService.removeInstalledFont(font.text);
+                    setInstalledGoogleFontsVersion((v) => v + 1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      GoogleFontsService.removeInstalledFont(font.text);
+                      setInstalledGoogleFontsVersion((v) => v + 1);
+                    }
+                  }}
+                >
+                  ×
+                </span>
+              </DropdownMenuItem>
+            ))}
+          {/* Browse More Fonts button */}
+          <DropdownMenuItem
+            key="browse-google-fonts"
+            icon={PlusIcon}
+            onClick={() => setShowGoogleFontsBrowser(true)}
+          >
+            Browse More Fonts...
+          </DropdownMenuItem>
         </DropdownMenuGroup>,
       );
     }
@@ -357,6 +439,15 @@ export const FontPickerList = React.memo(
         >
           {groups.length ? groups : null}
         </ScrollableList>
+        {showGoogleFontsBrowser && (
+          <GoogleFontsBrowser
+            onClose={() => setShowGoogleFontsBrowser(false)}
+            onFontSelect={(fontFamily) => {
+              wrappedOnSelect(fontFamily);
+              setInstalledGoogleFontsVersion((v) => v + 1);
+            }}
+          />
+        )}
       </PropertiesPopover>
     );
   },
