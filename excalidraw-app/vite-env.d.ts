@@ -15,8 +15,6 @@ interface ImportMetaEnv {
   VITE_APP_PORTAL_URL: string;
   VITE_APP_AI_BACKEND: string;
 
-  VITE_APP_FIREBASE_CONFIG: string;
-
   // Cloudflare configuration
   VITE_APP_CLOUDFLARE_WORKER_URL: string;
   VITE_APP_CLOUDFLARE_WS_URL: string;

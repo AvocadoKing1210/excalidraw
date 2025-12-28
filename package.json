@@ -14,7 +14,6 @@
     "@types/lodash.throttle": "4.1.9",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
-    "@types/socket.io-client": "3.0.0",
     "@vitejs/plugin-react": "5.1.2",
     "@vitest/coverage-v8": "4.0.16",
     "@vitest/ui": "4.0.16",

@@ -335,17 +335,3 @@ export const loadFilesFromCloudflare = async (
 
     return { loadedFiles, erroredFiles };
 };
-
-// Legacy aliases for easier migration (same API surface as Supabase module)
-export const isSavedToSupabase = isSavedToCloudflare;
-export const saveFilesToSupabase = saveFilesToCloudflare;
-export const saveToSupabase = saveToCloudflare;
-export const loadFromSupabase = loadFromCloudflare;
-export const loadFilesFromSupabase = loadFilesFromCloudflare;
-
-// Firebase-compatible names (for even older code)
-export const isSavedToFirebase = isSavedToCloudflare;
-export const saveFilesToFirebase = saveFilesToCloudflare;
-export const saveToFirebase = saveToCloudflare;
-export const loadFromFirebase = loadFromCloudflare;
-export const loadFilesFromFirebase = loadFilesFromCloudflare;

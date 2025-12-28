@@ -54,7 +54,7 @@ import { appJotaiStore, atom } from "../app-jotai";
 import {
   CURSOR_SYNC_TIMEOUT,
   FILE_UPLOAD_MAX_BYTES,
-  SUPABASE_STORAGE_PREFIXES,
+  STORAGE_PREFIXES,
   INITIAL_SCENE_UPDATE_TIMEOUT,
   LOAD_IMAGES_TIMEOUT,
   WS_SUBTYPES,
@@ -118,7 +118,7 @@ export interface CollabAPI {
   startCollaboration: CollabInstance["startCollaboration"];
   stopCollaboration: CollabInstance["stopCollaboration"];
   syncElements: CollabInstance["syncElements"];
-  fetchImageFilesFromSupabase: CollabInstance["fetchImageFilesFromSupabase"];
+  fetchImageFilesFromCloudflare: CollabInstance["fetchImageFilesFromCloudflare"];
   setUsername: CollabInstance["setUsername"];
   getUsername: CollabInstance["getUsername"];
   getActiveRoomLink: CollabInstance["getActiveRoomLink"];
@@ -165,7 +165,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         }
 
         const { savedFiles, erroredFiles } = await saveFilesToCloudflare({
-          prefix: `${SUPABASE_STORAGE_PREFIXES.collabFiles}/${roomId}`,
+          prefix: `${STORAGE_PREFIXES.collabFiles}/${roomId}`,
           files: await encodeFilesForUpload({
             files: addedFiles,
             encryptionKey: roomKey,
@@ -231,7 +231,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       onPointerUpdate: this.onPointerUpdate,
       startCollaboration: this.startCollaboration,
       syncElements: this.syncElements,
-      fetchImageFilesFromSupabase: this.fetchImageFilesFromSupabase,
+      fetchImageFilesFromCloudflare: this.fetchImageFilesFromCloudflare,
       stopCollaboration: this.stopCollaboration,
       setUsername: this.setUsername,
       getUsername: this.getUsername,
@@ -299,7 +299,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     ) {
       // this won't run in time if user decides to leave the site, but
       //  the purpose is to run in immediately after user decides to stay
-      this.saveCollabRoomToSupabase(syncableElements);
+      this.saveCollabRoomToCloudflare(syncableElements);
 
       if (import.meta.env.VITE_APP_DISABLE_PREVENT_UNLOAD !== "true") {
         preventUnload(event);
@@ -311,7 +311,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
   });
 
-  saveCollabRoomToSupabase = async (
+  saveCollabRoomToCloudflare = async (
     syncableElements: readonly SyncableExcalidrawElement[],
   ) => {
     try {
@@ -354,18 +354,18 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   stopCollaboration = (keepRemoteState = true) => {
     this.queueBroadcastAllElements.cancel();
-    this.queuesaveToSupabase.cancel();
+    this.queueSaveToCloudflare.cancel();
     this.loadImageFiles.cancel();
     this.resetErrorIndicator(true);
 
-    this.saveCollabRoomToSupabase(
+    this.saveCollabRoomToCloudflare(
       getSyncableElements(
         this.excalidrawAPI.getSceneElementsIncludingDeleted(),
       ),
     );
 
     if (this.portal.socket && this.fallbackInitializationHandler) {
-      // Supabase Realtime doesn't use off() in the same way, we can rely on close()
+      // WebSocket cleanup handled by close()
     }
 
     if (!keepRemoteState) {
@@ -412,7 +412,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
   };
 
-  private fetchImageFilesFromSupabase = async (opts: {
+  private fetchImageFilesFromCloudflare = async (opts: {
     elements: readonly ExcalidrawElement[];
     /**
      * Indicates whether to fetch files that are errored or pending and older
@@ -595,7 +595,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         captureUpdate: CaptureUpdateAction.NEVER,
       });
 
-      this.saveCollabRoomToSupabase(getSyncableElements(elements));
+      this.saveCollabRoomToCloudflare(getSyncableElements(elements));
     }
 
     // fallback in case you're not alone in the room but still don't receive
@@ -627,7 +627,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             const reconciledElements =
               this._reconcileElements(remoteElements);
             this.handleRemoteSceneUpdate(reconciledElements);
-            // noop if already resolved via init from firebase
+            // noop if already resolved via init from cloudflare
             scenePromise.resolve({
               elements: reconciledElements,
               scrollToContent: true,
@@ -795,7 +795,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   private loadImageFiles = throttle(async () => {
     const { loadedFiles, erroredFiles } =
-      await this.fetchImageFilesFromSupabase({
+      await this.fetchImageFilesFromCloudflare({
         elements: this.excalidrawAPI.getSceneElementsIncludingDeleted(),
       });
 
@@ -961,7 +961,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   syncElements = (elements: readonly OrderedExcalidrawElement[]) => {
     this.broadcastElements(elements);
-    this.queuesaveToSupabase();
+    this.queueSaveToCloudflare();
   };
 
   queueBroadcastAllElements = throttle(() => {
@@ -978,10 +978,10 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.setLastBroadcastedOrReceivedSceneVersion(newVersion);
   }, SYNC_FULL_SCENE_INTERVAL_MS);
 
-  queuesaveToSupabase = throttle(
+  queueSaveToCloudflare = throttle(
     () => {
       if (this.portal.socketInitialized) {
-        this.saveCollabRoomToSupabase(
+        this.saveCollabRoomToCloudflare(
           getSyncableElements(
             this.excalidrawAPI.getSceneElementsIncludingDeleted(),
           ),

@@ -34,9 +34,6 @@ export const STORAGE_PREFIXES = {
   collabFiles: `/files/rooms`,
 };
 
-// Legacy alias for backwards compatibility
-export const SUPABASE_STORAGE_PREFIXES = STORAGE_PREFIXES;
-
 export const ROOM_ID_BYTES = 10;
 
 export const STORAGE_KEYS = {

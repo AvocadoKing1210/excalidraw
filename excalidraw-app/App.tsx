@@ -83,7 +83,7 @@ import {
   appJotaiStore,
 } from "./app-jotai";
 import {
-  SUPABASE_STORAGE_PREFIXES,
+  STORAGE_PREFIXES,
   isExcalidrawPlusSignedUser,
   STORAGE_KEYS,
   SYNC_BROWSER_TABS_TIMEOUT,
@@ -418,7 +418,7 @@ const ExcalidrawWrapper = () => {
       if (collabAPI?.isCollaborating()) {
         if (data.scene.elements) {
           collabAPI
-            .fetchImageFilesFromSupabase({
+            .fetchImageFilesFromCloudflare({
               elements: data.scene.elements,
               forceFetchFiles: true,
             })
@@ -442,7 +442,7 @@ const ExcalidrawWrapper = () => {
 
         if (data.isExternalScene) {
           loadFilesFromCloudflare(
-            `${SUPABASE_STORAGE_PREFIXES.shareLinkFiles}/${data.id}`,
+            `${STORAGE_PREFIXES.shareLinkFiles}/${data.id}`,
             data.key,
             fileIds,
           ).then(({ loadedFiles, erroredFiles }) => {

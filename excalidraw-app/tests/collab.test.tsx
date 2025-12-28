@@ -46,26 +46,6 @@ vi.mock("../../excalidraw-app/data/cloudflare-storage.ts", () => {
     isSavedToCloudflare,
     loadFilesFromCloudflare,
     saveFilesToCloudflare,
-    // Legacy aliases
-    loadFromSupabase: loadFromCloudflare,
-    saveToSupabase: saveToCloudflare,
-    isSavedToSupabase: isSavedToCloudflare,
-    loadFilesFromSupabase: loadFilesFromCloudflare,
-    saveFilesToSupabase: saveFilesToCloudflare,
-  };
-});
-
-vi.mock("socket.io-client", () => {
-  return {
-    default: () => {
-      return {
-        close: () => { },
-        on: () => { },
-        once: () => { },
-        off: () => { },
-        emit: () => { },
-      };
-    },
   };
 });
 
