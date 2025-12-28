@@ -21,31 +21,65 @@ Object.defineProperty(window, "crypto", {
     getRandomValues: (arr: number[]) =>
       arr.forEach((v, i) => (arr[i] = Math.floor(Math.random() * 256))),
     subtle: {
-      generateKey: () => {},
+      generateKey: () => { },
       exportKey: () => ({ k: "sTdLvMC_M3V8_vGa3UVRDg" }),
     },
   },
 });
 
-vi.mock("../../excalidraw-app/data/firebase.ts", () => {
-  const loadFromFirebase = async () => null;
-  const saveToFirebase = () => {};
-  const isSavedToFirebase = () => true;
-  const loadFilesFromFirebase = async () => ({
+vi.mock("../../excalidraw-app/data/supabase.ts", () => {
+  const loadFromSupabase = async () => null;
+  const saveToSupabase = () => { };
+  const isSavedToSupabase = () => true;
+  const loadFilesFromSupabase = async () => ({
     loadedFiles: [],
     erroredFiles: [],
   });
-  const saveFilesToFirebase = async () => ({
+  const saveFilesToSupabase = async () => ({
     savedFiles: new Map(),
     erroredFiles: new Map(),
   });
 
+  // Mock Supabase Realtime channel
+  const createMockChannel = () => {
+    const handlers: Record<string, Function[]> = {};
+    return {
+      on: (event: string, _filter: any, callback?: Function) => {
+        const cb = callback || _filter;
+        if (!handlers[event]) handlers[event] = [];
+        handlers[event].push(cb);
+        return createMockChannel();
+      },
+      subscribe: (cb?: Function) => {
+        if (cb) cb('SUBSCRIBED');
+        return createMockChannel();
+      },
+      send: () => Promise.resolve('ok'),
+      track: () => Promise.resolve('ok'),
+      untrack: () => Promise.resolve('ok'),
+      unsubscribe: () => Promise.resolve('ok'),
+      presenceState: () => ({}),
+      topic: 'room:test',
+    };
+  };
+
+  const getSupabaseClient = () => ({
+    storage: {
+      from: () => ({
+        upload: async () => ({ error: null }),
+        download: async () => ({ data: null, error: null }),
+      }),
+    },
+    channel: () => createMockChannel(),
+  });
+
   return {
-    loadFromFirebase,
-    saveToFirebase,
-    isSavedToFirebase,
-    loadFilesFromFirebase,
-    saveFilesToFirebase,
+    loadFromSupabase,
+    saveToSupabase,
+    isSavedToSupabase,
+    loadFilesFromSupabase,
+    saveFilesToSupabase,
+    getSupabaseClient,
   };
 });
 
@@ -53,11 +87,11 @@ vi.mock("socket.io-client", () => {
   return {
     default: () => {
       return {
-        close: () => {},
-        on: () => {},
-        once: () => {},
-        off: () => {},
-        emit: () => {},
+        close: () => { },
+        on: () => { },
+        once: () => { },
+        off: () => { },
+        emit: () => { },
       };
     },
   };

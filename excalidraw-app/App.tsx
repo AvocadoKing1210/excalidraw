@@ -83,7 +83,7 @@ import {
   appJotaiStore,
 } from "./app-jotai";
 import {
-  FIREBASE_STORAGE_PREFIXES,
+  SUPABASE_STORAGE_PREFIXES,
   isExcalidrawPlusSignedUser,
   STORAGE_KEYS,
   SYNC_BROWSER_TABS_TIMEOUT,
@@ -115,7 +115,7 @@ import {
   importUsernameFromLocalStorage,
 } from "./data/localStorage";
 
-import { loadFilesFromFirebase } from "./data/firebase";
+import { loadFilesFromSupabase } from "./data/supabase";
 import {
   LibraryIndexedDBAdapter,
   LibraryLocalStorageMigrationAdapter,
@@ -418,7 +418,7 @@ const ExcalidrawWrapper = () => {
       if (collabAPI?.isCollaborating()) {
         if (data.scene.elements) {
           collabAPI
-            .fetchImageFilesFromFirebase({
+            .fetchImageFilesFromSupabase({
               elements: data.scene.elements,
               forceFetchFiles: true,
             })
@@ -441,8 +441,8 @@ const ExcalidrawWrapper = () => {
           }, [] as FileId[]) || [];
 
         if (data.isExternalScene) {
-          loadFilesFromFirebase(
-            `${FIREBASE_STORAGE_PREFIXES.shareLinkFiles}/${data.id}`,
+          loadFilesFromSupabase(
+            `${SUPABASE_STORAGE_PREFIXES.shareLinkFiles}/${data.id}`,
             data.key,
             fileIds,
           ).then(({ loadedFiles, erroredFiles }) => {
