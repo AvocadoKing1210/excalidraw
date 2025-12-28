@@ -1,0 +1,24 @@
+{
+  "name": "excalidraw-collab-workers",
+  "version": "1.0.0",
+  "description": "Cloudflare Durable Objects for Excalidraw real-time collaboration",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "keywords": [
+    "excalidraw",
+    "collaboration",
+    "websocket",
+    "durable-objects"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@cloudflare/workers-types": "latest",
+    "typescript": "latest",
+    "wrangler": "latest"
+  }
+}

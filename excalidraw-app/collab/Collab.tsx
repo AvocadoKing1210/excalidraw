@@ -78,9 +78,9 @@ import {
   loadFromSupabase,
   saveFilesToSupabase,
   saveToSupabase,
-  getSupabaseClient,
 } from "../data/supabase";
-import { REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
+import { createCloudflareWSClient } from "../data/cloudflare-ws";
+import type { UserPresence } from "../data/cloudflare-ws";
 import {
   importUsernameFromLocalStorage,
   saveUsernameToLocalStorage,
@@ -511,36 +511,58 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.fallbackInitializationHandler = fallbackInitializationHandler;
 
     try {
-      const supabase = getSupabaseClient();
-      const channel = supabase.channel(`room:${roomId}`, {
-        config: {
-          broadcast: { self: false },
-          presence: { key: roomId },
+      // Use a persistent socket ID for this session to avoid duplicate presence on refresh
+      // Using sessionStorage so each tab gets its own ID, but refreshes reuse the same ID
+      const SOCKET_ID_KEY = 'excalidraw-socket-id';
+      let socketId = sessionStorage.getItem(SOCKET_ID_KEY);
+      if (!socketId) {
+        socketId = crypto.randomUUID();
+        sessionStorage.setItem(SOCKET_ID_KEY, socketId);
+      }
+
+      const wsClient = createCloudflareWSClient({
+        roomId,
+        socketId,
+        username: this.state.username,
+        onMessage: (data) => {
+          this.portal.handleMessage(data);
+        },
+        onPresenceSync: (users: UserPresence[]) => {
+          console.log('[Collab] Presence sync:', users.length, 'users');
+          const socketIds = users.map(u => u.socketId) as SocketId[];
+          this.setCollaborators(socketIds);
+
+          // Trigger sync when presence changes
+          this.portal.broadcastScene(
+            WS_SUBTYPES.INIT,
+            this.getSceneElementsIncludingDeleted(),
+            /* syncAll */ true,
+          );
+        },
+        onUserJoin: (user: UserPresence) => {
+          console.log('[Collab] User joined:', user.socketId);
+          trackEvent("share", "room joined");
+        },
+        onUserLeave: (user: UserPresence) => {
+          console.log('[Collab] User left:', user.socketId);
+        },
+        onOpen: () => {
+          console.log('[Collab] WebSocket connected');
+          this.portal.socketInitialized = true;
+        },
+        onClose: () => {
+          console.log('[Collab] WebSocket disconnected');
+        },
+        onError: (error) => {
+          console.error('[Collab] WebSocket error:', error);
+          fallbackInitializationHandler();
         },
       });
 
-      this.portal.socket = this.portal.open(
-        channel,
-        roomId,
-        roomKey,
-      );
+      this.portal.open(wsClient, roomId, roomKey);
 
-      channel.subscribe((status) => {
-        console.log('[Collab] Channel status:', status);
-        if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
-          console.log('[Collab] Successfully subscribed to channel');
-          trackEvent("share", "room joined");
-
-          // Track presence so other users see us
-          channel.track({
-            user: this.state.username,
-            socketId: channel.topic,
-          });
-        } else if (status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR || status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT) {
-          console.error('[Collab] Channel subscription failed:', status);
-          fallbackInitializationHandler();
-        }
-      });
+      // Connect to the WebSocket
+      await wsClient.connect();
 
     } catch (error: any) {
       console.error(error);

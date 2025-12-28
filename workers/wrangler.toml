@@ -1,0 +1,24 @@
+name = "excalidraw-collab"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Enable Node.js compatibility for crypto APIs
+compatibility_flags = ["nodejs_compat"]
+
+[durable_objects]
+bindings = [
+  { name = "ROOM", class_name = "Room" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "http://localhost:3000,http://localhost:5173"
+
+# For local development
+[dev]
+port = 8787
+local_protocol = "http"

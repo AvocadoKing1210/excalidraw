@@ -17,6 +17,14 @@ interface ImportMetaEnv {
 
   VITE_APP_FIREBASE_CONFIG: string;
 
+  // Supabase configuration
+  VITE_APP_SUPABASE_URL: string;
+  VITE_APP_SUPABASE_ANON_KEY: string;
+
+  // Cloudflare Workers WebSocket URL for real-time collaboration
+  VITE_APP_CLOUDFLARE_WS_URL: string;
+  VITE_APP_COLLAB_SECRET: string;
+
   // whether to disable live reload / HMR. Usuaully what you want to do when
   // debugging Service Workers.
   VITE_APP_DEV_DISABLE_LIVE_RELOAD: string;

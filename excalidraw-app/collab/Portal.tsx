@@ -13,6 +13,7 @@ import type {
 
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
 import { isSyncableElement } from "../data";
+import { CloudflareWSClient } from "../data/cloudflare-ws";
 
 import type {
   SocketUpdateData,
@@ -20,99 +21,85 @@ import type {
   SyncableExcalidrawElement,
 } from "../data";
 import type { TCollabClass } from "./Collab";
-import type { RealtimeChannel } from "@supabase/supabase-js";
 
 class Portal {
   collab: TCollabClass;
-  socket: RealtimeChannel | null = null;
+  socket: CloudflareWSClient | null = null;
   socketInitialized: boolean = false; // we don't want the socket to emit any updates until it is fully initialized
   roomId: string | null = null;
   roomKey: string | null = null;
   broadcastedElementVersions: Map<string, number> = new Map();
+  private _socketId: string | null = null;
 
   constructor(collab: TCollabClass) {
     this.collab = collab;
   }
 
-  open(socket: RealtimeChannel, id: string, key: string) {
-    this.socket = socket;
+  open(wsClient: CloudflareWSClient, id: string, key: string) {
+    this.socket = wsClient;
     this.roomId = id;
     this.roomKey = key;
+    this._socketId = wsClient.socketId;
 
-    // IMPORTANT: All .on() handlers must be attached BEFORE subscribe() is called
-    // The actual subscribe() is done in Collab.startCollaboration() to avoid double-subscribe
-
-    // Handle broadcast events
-    this.socket
-      .on("broadcast", { event: WS_EVENTS.SERVER_VOLATILE }, (payload) => this.handleBroadcast(payload))
-      .on("broadcast", { event: WS_EVENTS.SERVER }, (payload) => this.handleBroadcast(payload))
-      .on("broadcast", { event: WS_EVENTS.USER_FOLLOW_CHANGE }, (payload) => {
-        if (this.onUserFollowChange && payload.payload) {
-          this.onUserFollowChange(payload.payload);
-        }
-      });
-
-    // Handle presence sync
-    this.socket.on("presence", { event: "sync" }, () => {
-      const state = this.socket?.presenceState();
-      if (state) {
-        const users = Object.values(state).flat() as any[];
-        const clientIds = users.map(u => u.socketId).filter(Boolean);
-        this.collab.setCollaborators(clientIds);
-
-        // Trigger sync when presence changes (new user joined)
-        this.broadcastScene(
-          WS_SUBTYPES.INIT,
-          this.collab.getSceneElementsIncludingDeleted(),
-          /* syncAll */ true,
-        );
-      }
-    });
-
-    return socket;
+    return wsClient;
   }
 
-  // Helper to handle incoming broadcast payloads
-  // We need to expose a way for Collab to register callbacks, or we call Collab methods directly.
-  // The original code had Collab listening to `client-broadcast`.
-  // The server used to emit `client-broadcast` when it received `SERVER` or `SERVER_VOLATILE`.
-  // So here, we should receive the payload and trigger the handler.
-  // CONSTANT: We'll need to update Collab to register a handler on Portal.
-
-  handleBroadcast(payload: any) {
-    // payload from Supabase has structure: { type, event, payload: { encryptedBuffer, iv } }
-    // The encryptedBuffer and iv are Base64 encoded strings
-    if (this.onBroadcast && payload.payload) {
-      try {
-        // Decode Base64 strings back to binary
-        const encryptedBuffer = Uint8Array.from(
-          atob(payload.payload.encryptedBuffer),
-          (c) => c.charCodeAt(0)
-        ).buffer;
-        const iv = Uint8Array.from(
-          atob(payload.payload.iv),
-          (c) => c.charCodeAt(0)
-        );
-        this.onBroadcast(encryptedBuffer, iv);
-      } catch (error) {
-        console.error('[Portal] Failed to decode broadcast payload:', error);
-      }
-    }
-  }
-
+  // Handler for broadcast messages (called from Collab)
   onBroadcast: ((encryptedBuffer: ArrayBuffer, iv: Uint8Array) => void) | null = null;
   onUserFollowChange: ((payload: OnUserFollowedPayload) => void) | null = null;
 
+  // Handle incoming message from WebSocket
+  handleMessage = (data: ArrayBuffer | string) => {
+    if (data instanceof ArrayBuffer) {
+      // Binary data - extract IV and encrypted data
+      // Format: [4 bytes IV length][IV bytes][encrypted data]
+      const view = new DataView(data);
+      const ivLength = view.getUint32(0, true);
+      const iv = new Uint8Array(data, 4, ivLength);
+      const encryptedBuffer = data.slice(4 + ivLength);
+
+      if (this.onBroadcast) {
+        this.onBroadcast(encryptedBuffer, iv);
+      }
+      return;
+    }
+
+    // JSON message
+    try {
+      const message = JSON.parse(data);
+      if (message.type === 'broadcast') {
+        if (message.event === WS_EVENTS.USER_FOLLOW_CHANGE && this.onUserFollowChange) {
+          this.onUserFollowChange(message.payload);
+        } else if (message.payload?.encryptedBuffer && message.payload?.iv) {
+          // Legacy base64 encoded format
+          const encryptedBuffer = Uint8Array.from(
+            atob(message.payload.encryptedBuffer),
+            (c) => c.charCodeAt(0)
+          ).buffer;
+          const iv = Uint8Array.from(
+            atob(message.payload.iv),
+            (c) => c.charCodeAt(0)
+          );
+          if (this.onBroadcast) {
+            this.onBroadcast(encryptedBuffer, iv);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Portal] Failed to parse message:', error);
+    }
+  };
 
   close() {
     if (!this.socket) {
       return;
     }
     this.queueFileUpload.flush();
-    this.socket.unsubscribe();
+    this.socket.close();
     this.socket = null;
     this.roomId = null;
     this.roomKey = null;
+    this._socketId = null;
     this.socketInitialized = false;
     this.broadcastedElementVersions = new Map();
   }
@@ -120,7 +107,7 @@ class Portal {
   isOpen() {
     return !!(
       this.socketInitialized &&
-      this.socket &&
+      this.socket?.isConnected &&
       this.roomId &&
       this.roomKey
     );
@@ -131,27 +118,21 @@ class Portal {
     volatile: boolean = false,
     roomId?: string,
   ) {
-    if (this.isOpen()) {
+    if (this.isOpen() && this.socket) {
       const json = JSON.stringify(data);
       const encoded = new TextEncoder().encode(json);
       const { encryptedBuffer, iv } = await encryptData(this.roomKey!, encoded);
 
-      // Map Arrays to regular arrays if needed? Supabase handles JSON.
-      // ArrayBuffer might need to be Base64 encoded for JSON transport if Supabase doesn't handle mixed types well in `send`.
-      // `socket.io` supports binary. Supabase Realtime sends JSON.
-      // WE MUST BASE64 ENCODE BINARY DATA.
+      // Pack IV length + IV + encrypted data into single binary message
+      const ivLength = iv.byteLength;
+      const totalLength = 4 + ivLength + encryptedBuffer.byteLength;
+      const packed = new ArrayBuffer(totalLength);
+      const view = new DataView(packed);
+      view.setUint32(0, ivLength, true);
+      new Uint8Array(packed, 4, ivLength).set(iv);
+      new Uint8Array(packed, 4 + ivLength).set(new Uint8Array(encryptedBuffer));
 
-      const b64Buffer = btoa(String.fromCharCode(...new Uint8Array(encryptedBuffer)));
-      const b64Iv = btoa(String.fromCharCode(...iv));
-
-      this.socket?.send({
-        type: 'broadcast',
-        event: volatile ? WS_EVENTS.SERVER_VOLATILE : WS_EVENTS.SERVER,
-        payload: {
-          encryptedBuffer: b64Buffer,
-          iv: b64Iv
-        },
-      });
+      this.socket.sendBinary(packed);
     }
   }
 
@@ -303,22 +284,13 @@ class Portal {
 
   broadcastUserFollowed = (payload: OnUserFollowedPayload) => {
     if (this.socket) {
-      this.socket.send({
-        type: 'broadcast',
-        event: WS_EVENTS.USER_FOLLOW_CHANGE,
-        payload: payload,
-      });
+      this.socket.broadcast(WS_EVENTS.USER_FOLLOW_CHANGE, payload);
     }
   };
 
   // Helper to get ephemeral socket ID
-  getSocketId() {
-    // Supabase doesn't assign a stable socket ID by default.
-    // We can use the presence 'presence_ref' or a locally generated UUID.
-    // ideally we generated one on init?
-    // For now let's reuse the one we track in presence.
-    // Or we can just use a random string since it's just for identification in this session.
-    return this.socket?.topic || "unknown"; // Topic is usually `room:ID`
+  getSocketId(): string {
+    return this._socketId || "unknown";
   }
 }
 

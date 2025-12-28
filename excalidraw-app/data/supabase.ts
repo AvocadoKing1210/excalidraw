@@ -28,8 +28,7 @@ import { getSyncableElements } from ".";
 
 import type { SyncableExcalidrawElement } from ".";
 import type Portal from "../collab/Portal";
-import type { Socket } from "socket.io-client";
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import type { CloudflareWSClient } from "./cloudflare-ws";
 
 // private
 // -----------------------------------------------------------------------------
@@ -90,12 +89,12 @@ const decryptElements = async (
 };
 
 class SupabaseSceneVersionCache {
-    private static cache = new WeakMap<Socket | RealtimeChannel, number>();
-    static get = (socket: Socket | RealtimeChannel) => {
+    private static cache = new WeakMap<CloudflareWSClient, number>();
+    static get = (socket: CloudflareWSClient) => {
         return SupabaseSceneVersionCache.cache.get(socket);
     };
     static set = (
-        socket: Socket | RealtimeChannel,
+        socket: CloudflareWSClient,
         elements: readonly SyncableExcalidrawElement[],
     ) => {
         SupabaseSceneVersionCache.cache.set(socket, getSceneVersion(elements));
@@ -256,7 +255,7 @@ export const saveToSupabase = async (
 export const loadFromSupabase = async (
     roomId: string,
     roomKey: string,
-    socket: Socket | RealtimeChannel | null,
+    socket: CloudflareWSClient | null,
 ): Promise<readonly SyncableExcalidrawElement[] | null> => {
     const { data, error } = await supabase
         .from("scenes")

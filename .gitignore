@@ -1,4 +1,5 @@
 .DS_Store
+.env
 .env.development.local
 .env.local
 .env.production.local
@@ -27,3 +28,4 @@ dev-dist
 html
 meta*.json
 .claude
+.wrangler
