@@ -511,13 +511,14 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.fallbackInitializationHandler = fallbackInitializationHandler;
 
     try {
-      // Use a persistent socket ID for this session to avoid duplicate presence on refresh
-      // Using sessionStorage so each tab gets its own ID, but refreshes reuse the same ID
+      // Use a persistent socket ID to avoid duplicate presence on tab close/reopen
+      // Using localStorage so the ID persists across tab closes - when user returns,
+      // they'll reuse the same ID and the server can replace the stale connection
       const SOCKET_ID_KEY = 'excalidraw-socket-id';
-      let socketId = sessionStorage.getItem(SOCKET_ID_KEY);
+      let socketId = localStorage.getItem(SOCKET_ID_KEY);
       if (!socketId) {
         socketId = crypto.randomUUID();
-        sessionStorage.setItem(SOCKET_ID_KEY, socketId);
+        localStorage.setItem(SOCKET_ID_KEY, socketId);
       }
 
       const wsClient = createCloudflareWSClient({
@@ -545,6 +546,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         },
         onUserLeave: (user: UserPresence) => {
           console.log('[Collab] User left:', user.socketId);
+          // Remove the user from collaborators so their cursor disappears
+          const newCollaborators = new Map(this.collaborators);
+          newCollaborators.delete(user.socketId as SocketId);
+          this.collaborators = newCollaborators;
+          this.excalidrawAPI.updateScene({ collaborators: newCollaborators });
         },
         onOpen: () => {
           console.log('[Collab] WebSocket connected');
