@@ -17,11 +17,8 @@ interface ImportMetaEnv {
 
   VITE_APP_FIREBASE_CONFIG: string;
 
-  // Supabase configuration
-  VITE_APP_SUPABASE_URL: string;
-  VITE_APP_SUPABASE_ANON_KEY: string;
-
-  // Cloudflare Workers WebSocket URL for real-time collaboration
+  // Cloudflare configuration
+  VITE_APP_CLOUDFLARE_WORKER_URL: string;
   VITE_APP_CLOUDFLARE_WS_URL: string;
   VITE_APP_COLLAB_SECRET: string;
 

@@ -26,7 +26,16 @@ import type {
 
 import { FILE_UPLOAD_MAX_BYTES } from "../app_constants";
 import { encodeFilesForUpload } from "../data/FileManager";
-import { getSupabaseClient, saveFilesToSupabase } from "../data/supabase";
+import { saveFilesToCloudflare } from "../data/cloudflare-storage";
+
+// Get the Cloudflare Worker URL from environment
+const getWorkerUrl = (): string => {
+  try {
+    return import.meta.env.VITE_APP_CLOUDFLARE_WORKER_URL || "http://localhost:8787";
+  } catch {
+    return "http://localhost:8787";
+  }
+};
 
 export const exportToExcalidrawPlus = async (
   elements: readonly NonDeletedExcalidrawElement[],
@@ -34,8 +43,7 @@ export const exportToExcalidrawPlus = async (
   files: BinaryFiles,
   name: string,
 ) => {
-  const supabase = getSupabaseClient();
-
+  const workerUrl = getWorkerUrl();
   const id = `${nanoid(12)}`;
 
   const encryptionKey = (await generateEncryptionKey())!;
@@ -51,16 +59,17 @@ export const exportToExcalidrawPlus = async (
     },
   );
 
-  // Upload to Supabase Storage
-  const { error } = await supabase.storage
-    .from("excalidraw-files")
-    .upload(`migrations/scenes/${id}`, blob, {
-      contentType: MIME_TYPES.binary,
-      upsert: true,
-    });
+  // Upload to Cloudflare R2 via Worker
+  const response = await fetch(`${workerUrl}/files/migrations/scenes/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": MIME_TYPES.binary,
+    },
+    body: blob,
+  });
 
-  if (error) {
-    throw error;
+  if (!response.ok) {
+    throw new Error(`Failed to upload scene: ${response.status}`);
   }
 
   const filesMap = new Map<FileId, BinaryFileData>();
@@ -77,7 +86,7 @@ export const exportToExcalidrawPlus = async (
       maxBytes: FILE_UPLOAD_MAX_BYTES,
     });
 
-    await saveFilesToSupabase({
+    await saveFilesToCloudflare({
       prefix: `/migrations/files/scenes/${id}`,
       files: filesToUpload,
     });

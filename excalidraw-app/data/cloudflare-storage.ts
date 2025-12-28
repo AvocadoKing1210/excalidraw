@@ -7,7 +7,6 @@ import {
 } from "@excalidraw/excalidraw/data/encryption";
 import { restoreElements } from "@excalidraw/excalidraw/data/restore";
 import { getSceneVersion } from "@excalidraw/element";
-import { createClient } from "@supabase/supabase-js";
 
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type {
@@ -22,7 +21,7 @@ import type {
     DataURL,
 } from "@excalidraw/excalidraw/types";
 
-import { FILE_CACHE_MAX_AGE_SEC } from "../app_constants";
+
 
 import { getSyncableElements } from ".";
 
@@ -30,33 +29,22 @@ import type { SyncableExcalidrawElement } from ".";
 import type Portal from "../collab/Portal";
 import type { CloudflareWSClient } from "./cloudflare-ws";
 
-// private
-// -----------------------------------------------------------------------------
-
-let SUPABASE_URL: string;
-let SUPABASE_ANON_KEY: string;
-
-try {
-    SUPABASE_URL = import.meta.env.VITE_APP_SUPABASE_URL || "";
-    SUPABASE_ANON_KEY = import.meta.env.VITE_APP_SUPABASE_ANON_KEY || "";
-} catch (error: any) {
-    console.warn("Error loading Supabase config from environment");
-    SUPABASE_URL = "";
-    SUPABASE_ANON_KEY = "";
-}
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-export const getSupabaseClient = () => supabase;
+// Get the Cloudflare Worker URL from environment
+const getWorkerUrl = (): string => {
+    try {
+        return import.meta.env.VITE_APP_CLOUDFLARE_WORKER_URL || "http://localhost:8787";
+    } catch {
+        return "http://localhost:8787";
+    }
+};
 
 // -----------------------------------------------------------------------------
 
-type SupabaseStoredScene = {
-    room_id: string;
-    scene_version: number;
+type CloudflareStoredScene = {
     iv: string; // base64 encoded
     ciphertext: string; // base64 encoded
-    updated_at: string;
+    sceneVersion: number;
+    updatedAt: number;
 };
 
 const encryptElements = async (
@@ -71,7 +59,7 @@ const encryptElements = async (
 };
 
 const decryptElements = async (
-    data: SupabaseStoredScene,
+    data: CloudflareStoredScene,
     roomKey: string,
 ): Promise<readonly ExcalidrawElement[]> => {
     const ciphertext = Uint8Array.from(atob(data.ciphertext), (c) =>
@@ -88,40 +76,41 @@ const decryptElements = async (
     return JSON.parse(decodedData);
 };
 
-class SupabaseSceneVersionCache {
+class CloudflareSceneVersionCache {
     private static cache = new WeakMap<CloudflareWSClient, number>();
     static get = (socket: CloudflareWSClient) => {
-        return SupabaseSceneVersionCache.cache.get(socket);
+        return CloudflareSceneVersionCache.cache.get(socket);
     };
     static set = (
         socket: CloudflareWSClient,
         elements: readonly SyncableExcalidrawElement[],
     ) => {
-        SupabaseSceneVersionCache.cache.set(socket, getSceneVersion(elements));
+        CloudflareSceneVersionCache.cache.set(socket, getSceneVersion(elements));
     };
 }
 
-export const isSavedToSupabase = (
+export const isSavedToCloudflare = (
     portal: Portal,
     elements: readonly ExcalidrawElement[],
 ): boolean => {
     if (portal.socket && portal.roomId && portal.roomKey) {
         const sceneVersion = getSceneVersion(elements);
 
-        return SupabaseSceneVersionCache.get(portal.socket) === sceneVersion;
+        return CloudflareSceneVersionCache.get(portal.socket) === sceneVersion;
     }
     // if no room exists, consider the room saved so that we don't unnecessarily
     // prevent unload (there's nothing we could do at that point anyway)
     return true;
 };
 
-export const saveFilesToSupabase = async ({
+export const saveFilesToCloudflare = async ({
     prefix,
     files,
 }: {
     prefix: string;
     files: { id: FileId; buffer: Uint8Array }[];
 }) => {
+    const workerUrl = getWorkerUrl();
     const erroredFiles: FileId[] = [];
     const savedFiles: FileId[] = [];
 
@@ -129,20 +118,20 @@ export const saveFilesToSupabase = async ({
         files.map(async ({ id, buffer }) => {
             try {
                 const filePath = `${prefix.replace(/^\//, "")}/${id}`;
-                const { error } = await supabase.storage
-                    .from("excalidraw-files")
-                    .upload(filePath, buffer, {
-                        contentType: MIME_TYPES.binary,
-                        cacheControl: `${FILE_CACHE_MAX_AGE_SEC}`,
-                        upsert: true,
-                    });
+                const response = await fetch(`${workerUrl}/files/${filePath}`, {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": MIME_TYPES.binary,
+                    },
+                    body: buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer,
+                });
 
-                if (error) {
-                    throw error;
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.status}`);
                 }
                 savedFiles.push(id);
             } catch (error: any) {
-                console.error("Error saving file to Supabase:", error);
+                console.error("Error saving file to Cloudflare:", error);
                 erroredFiles.push(id);
             }
         }),
@@ -151,7 +140,7 @@ export const saveFilesToSupabase = async ({
     return { savedFiles, erroredFiles };
 };
 
-const createSupabaseSceneDocument = async (
+const createCloudflareSceneDocument = async (
     elements: readonly SyncableExcalidrawElement[],
     roomKey: string,
 ) => {
@@ -165,13 +154,13 @@ const createSupabaseSceneDocument = async (
     const ivBase64 = btoa(String.fromCharCode(...iv));
 
     return {
-        scene_version: sceneVersion,
+        sceneVersion,
         ciphertext: ciphertextBase64,
         iv: ivBase64,
     };
 };
 
-export const saveToSupabase = async (
+export const saveToCloudflare = async (
     portal: Portal,
     elements: readonly SyncableExcalidrawElement[],
     appState: AppState,
@@ -182,36 +171,43 @@ export const saveToSupabase = async (
         !roomId ||
         !roomKey ||
         !socket ||
-        isSavedToSupabase(portal, elements)
+        isSavedToCloudflare(portal, elements)
     ) {
         return null;
     }
 
-    // First, try to get existing scene
-    const { data: existingScene } = await supabase
-        .from("scenes")
-        .select("*")
-        .eq("room_id", roomId)
-        .single();
+    const workerUrl = getWorkerUrl();
 
-    let storedScene: SupabaseStoredScene;
+    // First, try to get existing scene
+    let existingScene: CloudflareStoredScene | null = null;
+    try {
+        const response = await fetch(`${workerUrl}/room/${roomId}/scene`);
+        if (response.ok) {
+            existingScene = await response.json();
+        }
+    } catch (error) {
+        console.warn("Error fetching existing scene:", error);
+    }
+
+    let storedScene: CloudflareStoredScene;
 
     if (!existingScene) {
         // Create new scene
-        const sceneData = await createSupabaseSceneDocument(elements, roomKey);
-        const { data, error } = await supabase
-            .from("scenes")
-            .insert({
-                room_id: roomId,
-                ...sceneData,
-            })
-            .select()
-            .single();
+        const sceneData = await createCloudflareSceneDocument(elements, roomKey);
+        const response = await fetch(`${workerUrl}/room/${roomId}/scene`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(sceneData),
+        });
 
-        if (error) {
-            throw error;
+        if (!response.ok) {
+            throw new Error(`Failed to save scene: ${response.status}`);
         }
-        storedScene = data;
+
+        storedScene = {
+            ...sceneData,
+            updatedAt: Date.now(),
+        };
     } else {
         // Update existing scene with reconciliation
         const prevStoredElements = getSyncableElements(
@@ -225,66 +221,79 @@ export const saveToSupabase = async (
             ),
         );
 
-        const sceneData = await createSupabaseSceneDocument(
+        const sceneData = await createCloudflareSceneDocument(
             reconciledElements,
             roomKey,
         );
 
-        const { data, error } = await supabase
-            .from("scenes")
-            .update(sceneData)
-            .eq("room_id", roomId)
-            .select()
-            .single();
+        const response = await fetch(`${workerUrl}/room/${roomId}/scene`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(sceneData),
+        });
 
-        if (error) {
-            throw error;
+        if (!response.ok) {
+            throw new Error(`Failed to update scene: ${response.status}`);
         }
-        storedScene = data;
+
+        storedScene = {
+            ...sceneData,
+            updatedAt: Date.now(),
+        };
     }
 
     const storedElements = getSyncableElements(
         restoreElements(await decryptElements(storedScene, roomKey), null),
     );
 
-    SupabaseSceneVersionCache.set(socket, storedElements);
+    CloudflareSceneVersionCache.set(socket, storedElements);
 
     return storedElements;
 };
 
-export const loadFromSupabase = async (
+export const loadFromCloudflare = async (
     roomId: string,
     roomKey: string,
     socket: CloudflareWSClient | null,
 ): Promise<readonly SyncableExcalidrawElement[] | null> => {
-    const { data, error } = await supabase
-        .from("scenes")
-        .select("*")
-        .eq("room_id", roomId)
-        .single();
+    const workerUrl = getWorkerUrl();
 
-    if (error || !data) {
+    try {
+        const response = await fetch(`${workerUrl}/room/${roomId}/scene`);
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data: CloudflareStoredScene | null = await response.json();
+
+        if (!data) {
+            return null;
+        }
+
+        const elements = getSyncableElements(
+            restoreElements(await decryptElements(data, roomKey), null, {
+                deleteInvisibleElements: true,
+            }),
+        );
+
+        if (socket) {
+            CloudflareSceneVersionCache.set(socket, elements);
+        }
+
+        return elements;
+    } catch (error) {
+        console.error("Error loading from Cloudflare:", error);
         return null;
     }
-
-    const elements = getSyncableElements(
-        restoreElements(await decryptElements(data, roomKey), null, {
-            deleteInvisibleElements: true,
-        }),
-    );
-
-    if (socket) {
-        SupabaseSceneVersionCache.set(socket, elements);
-    }
-
-    return elements;
 };
 
-export const loadFilesFromSupabase = async (
+export const loadFilesFromCloudflare = async (
     prefix: string,
     decryptionKey: string,
     filesIds: readonly FileId[],
 ) => {
+    const workerUrl = getWorkerUrl();
     const loadedFiles: BinaryFileData[] = [];
     const erroredFiles = new Map<FileId, true>();
 
@@ -292,15 +301,13 @@ export const loadFilesFromSupabase = async (
         [...new Set(filesIds)].map(async (id) => {
             try {
                 const filePath = `${prefix.replace(/^\//, "")}/${id}`;
-                const { data, error } = await supabase.storage
-                    .from("excalidraw-files")
-                    .download(filePath);
+                const response = await fetch(`${workerUrl}/files/${filePath}`);
 
-                if (error || !data) {
-                    throw error || new Error("No data returned");
+                if (!response.ok) {
+                    throw new Error(`File not found: ${response.status}`);
                 }
 
-                const arrayBuffer = await data.arrayBuffer();
+                const arrayBuffer = await response.arrayBuffer();
 
                 const { data: decompressedData, metadata } =
                     await decompressData<BinaryFileMetadata>(
@@ -329,10 +336,16 @@ export const loadFilesFromSupabase = async (
     return { loadedFiles, erroredFiles };
 };
 
-// Re-export with Firebase-compatible names for easier migration
-export const loadFirebaseStorage = async () => supabase.storage;
-export const isSavedToFirebase = isSavedToSupabase;
-export const saveFilesToFirebase = saveFilesToSupabase;
-export const saveToFirebase = saveToSupabase;
-export const loadFromFirebase = loadFromSupabase;
-export const loadFilesFromFirebase = loadFilesFromSupabase;
+// Legacy aliases for easier migration (same API surface as Supabase module)
+export const isSavedToSupabase = isSavedToCloudflare;
+export const saveFilesToSupabase = saveFilesToCloudflare;
+export const saveToSupabase = saveToCloudflare;
+export const loadFromSupabase = loadFromCloudflare;
+export const loadFilesFromSupabase = loadFilesFromCloudflare;
+
+// Firebase-compatible names (for even older code)
+export const isSavedToFirebase = isSavedToCloudflare;
+export const saveFilesToFirebase = saveFilesToCloudflare;
+export const saveToFirebase = saveToCloudflare;
+export const loadFromFirebase = loadFromCloudflare;
+export const loadFilesFromFirebase = loadFilesFromCloudflare;

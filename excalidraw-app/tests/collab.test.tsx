@@ -27,59 +27,31 @@ Object.defineProperty(window, "crypto", {
   },
 });
 
-vi.mock("../../excalidraw-app/data/supabase.ts", () => {
-  const loadFromSupabase = async () => null;
-  const saveToSupabase = () => { };
-  const isSavedToSupabase = () => true;
-  const loadFilesFromSupabase = async () => ({
+vi.mock("../../excalidraw-app/data/cloudflare-storage.ts", () => {
+  const loadFromCloudflare = async () => null;
+  const saveToCloudflare = () => { };
+  const isSavedToCloudflare = () => true;
+  const loadFilesFromCloudflare = async () => ({
     loadedFiles: [],
     erroredFiles: [],
   });
-  const saveFilesToSupabase = async () => ({
+  const saveFilesToCloudflare = async () => ({
     savedFiles: new Map(),
     erroredFiles: new Map(),
   });
 
-  // Mock Supabase Realtime channel
-  const createMockChannel = () => {
-    const handlers: Record<string, Function[]> = {};
-    return {
-      on: (event: string, _filter: any, callback?: Function) => {
-        const cb = callback || _filter;
-        if (!handlers[event]) handlers[event] = [];
-        handlers[event].push(cb);
-        return createMockChannel();
-      },
-      subscribe: (cb?: Function) => {
-        if (cb) cb('SUBSCRIBED');
-        return createMockChannel();
-      },
-      send: () => Promise.resolve('ok'),
-      track: () => Promise.resolve('ok'),
-      untrack: () => Promise.resolve('ok'),
-      unsubscribe: () => Promise.resolve('ok'),
-      presenceState: () => ({}),
-      topic: 'room:test',
-    };
-  };
-
-  const getSupabaseClient = () => ({
-    storage: {
-      from: () => ({
-        upload: async () => ({ error: null }),
-        download: async () => ({ data: null, error: null }),
-      }),
-    },
-    channel: () => createMockChannel(),
-  });
-
   return {
-    loadFromSupabase,
-    saveToSupabase,
-    isSavedToSupabase,
-    loadFilesFromSupabase,
-    saveFilesToSupabase,
-    getSupabaseClient,
+    loadFromCloudflare,
+    saveToCloudflare,
+    isSavedToCloudflare,
+    loadFilesFromCloudflare,
+    saveFilesToCloudflare,
+    // Legacy aliases
+    loadFromSupabase: loadFromCloudflare,
+    saveToSupabase: saveToCloudflare,
+    isSavedToSupabase: isSavedToCloudflare,
+    loadFilesFromSupabase: loadFilesFromCloudflare,
+    saveFilesToSupabase: saveFilesToCloudflare,
   };
 });
 

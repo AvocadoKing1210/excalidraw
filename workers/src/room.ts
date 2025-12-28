@@ -1,6 +1,6 @@
 /**
  * Room Durable Object
- * Manages WebSocket connections and message broadcasting for a single collaboration room.
+ * Manages WebSocket connections, message broadcasting, and scene persistence for a single collaboration room.
  */
 
 interface UserPresence {
@@ -27,6 +27,13 @@ type WSMessage = BroadcastMessage | PresenceMessage;
 interface Env {
     ROOM: DurableObjectNamespace;
     ENVIRONMENT: string;
+}
+
+interface StoredScene {
+    iv: string;
+    ciphertext: string;
+    sceneVersion: number;
+    updatedAt: number;
 }
 
 // Message stats for logging
@@ -96,6 +103,17 @@ export class Room implements DurableObject {
             this.roomId = roomMatch[1].substring(0, 8); // Truncate for readability
         }
 
+        // Handle scene persistence endpoints
+        if (url.pathname.endsWith('/scene')) {
+            if (request.method === 'GET') {
+                return this.handleGetScene();
+            }
+            if (request.method === 'POST') {
+                return this.handleSaveScene(request);
+            }
+            return new Response('Method not allowed', { status: 405 });
+        }
+
         // Handle WebSocket upgrade
         if (request.headers.get('Upgrade') === 'websocket') {
             this.log('info', '🔌 WebSocket upgrade request');
@@ -111,6 +129,58 @@ export class Room implements DurableObject {
         }
 
         return new Response('Not found', { status: 404 });
+    }
+
+    // Scene persistence methods
+    private async handleGetScene(): Promise<Response> {
+        try {
+            const scene = await this.state.storage.get<StoredScene>('scene');
+
+            if (!scene) {
+                this.log('info', '📄 Scene requested but not found');
+                return Response.json(null);
+            }
+
+            this.log('info', `📄 Scene loaded (version: ${scene.sceneVersion})`);
+            return Response.json(scene);
+        } catch (error) {
+            this.log('error', '❌ Error loading scene:', error);
+            return new Response('Error loading scene', { status: 500 });
+        }
+    }
+
+    private async handleSaveScene(request: Request): Promise<Response> {
+        try {
+            const body = await request.json() as { iv: string; ciphertext: string; sceneVersion: number };
+
+            // Get existing scene to check version
+            const existingScene = await this.state.storage.get<StoredScene>('scene');
+
+            // Only save if new version is higher (prevents race conditions)
+            if (existingScene && body.sceneVersion <= existingScene.sceneVersion) {
+                this.log('info', `📄 Scene save skipped (version ${body.sceneVersion} <= ${existingScene.sceneVersion})`);
+                return Response.json({
+                    success: true,
+                    sceneVersion: existingScene.sceneVersion,
+                    skipped: true
+                });
+            }
+
+            const scene: StoredScene = {
+                iv: body.iv,
+                ciphertext: body.ciphertext,
+                sceneVersion: body.sceneVersion,
+                updatedAt: Date.now(),
+            };
+
+            await this.state.storage.put('scene', scene);
+
+            this.log('info', `📄 Scene saved (version: ${scene.sceneVersion})`);
+            return Response.json({ success: true, sceneVersion: scene.sceneVersion });
+        } catch (error) {
+            this.log('error', '❌ Error saving scene:', error);
+            return new Response('Error saving scene', { status: 500 });
+        }
     }
 
     private handleWebSocketUpgrade(request: Request): Response {

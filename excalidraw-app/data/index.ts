@@ -37,7 +37,7 @@ import {
 } from "../app_constants";
 
 import { encodeFilesForUpload } from "./FileManager";
-import { saveFilesToSupabase } from "./supabase";
+import { saveFilesToCloudflare } from "./cloudflare-storage";
 
 import type { WS_SUBTYPES } from "../app_constants";
 
@@ -325,7 +325,7 @@ export const exportToBackend = async (
       url.hash = `json=${json.id},${encryptionKey}`;
       const urlString = url.toString();
 
-      await saveFilesToSupabase({
+      await saveFilesToCloudflare({
         prefix: `/files/shareLinks/${json.id}`,
         files: filesToUpload,
       });
