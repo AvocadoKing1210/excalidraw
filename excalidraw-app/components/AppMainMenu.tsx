@@ -2,6 +2,7 @@ import {
   //   loginIcon,
   //   ExcalLogo,
   //   eyeIcon,
+  WorkspaceIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
@@ -22,6 +23,7 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   setTheme: (theme: Theme | "system") => void;
   refresh: () => void;
+  onNavigateToDashboard?: () => void;
 }> = React.memo((props) => {
   return (
     <MainMenu>
@@ -40,9 +42,14 @@ export const AppMainMenu: React.FC<{
       <MainMenu.DefaultItems.Help />
       <MainMenu.DefaultItems.ClearCanvas />
 
-
-
-
+      {props.onNavigateToDashboard && (
+        <MainMenu.Item
+          icon={WorkspaceIcon}
+          onSelect={props.onNavigateToDashboard}
+        >
+          Workspace
+        </MainMenu.Item>
+      )}
 
       <MainMenu.Separator />
       <MainMenu.DefaultItems.ToggleTheme

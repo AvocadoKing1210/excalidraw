@@ -791,6 +791,18 @@ export const SendToBackIcon = createIcon(arrowBarToTopJSX, {
 // first one the user sees. Horizontal align icons should not be flipped since
 // that would make them lie about their function.
 //
+// tabler-icons: layout-grid
+export const WorkspaceIcon = createIcon(
+  <g strokeWidth="1.5">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <rect x="4" y="4" width="6" height="6" rx="1" />
+    <rect x="14" y="4" width="6" height="6" rx="1" />
+    <rect x="4" y="14" width="6" height="6" rx="1" />
+    <rect x="14" y="14" width="6" height="6" rx="1" />
+  </g>,
+  tablerIconProps,
+);
+
 export const AlignTopIcon = createIcon(
   <>
     <g clipPath="url(#a)" stroke="currentColor" strokeWidth="1.25">

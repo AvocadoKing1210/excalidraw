@@ -75,6 +75,7 @@ import type { ResolutionType } from "@excalidraw/common/utility-types";
 import type { ResolvablePromise } from "@excalidraw/common/utils";
 
 import CustomStats from "./CustomStats";
+import { generateThumbnail } from "./data/thumbnails";
 import {
   Provider,
   useAtom,
@@ -140,6 +141,8 @@ import "./index.scss";
 
 // import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import { CanvasContext, useCanvasContext } from "./data/CanvasContext";
+import { CanvasManager } from "./data/CanvasManager";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -347,6 +350,8 @@ const ExcalidrawWrapper = () => {
   const [langCode, setLangCode] = useAppLangCode();
 
   const editorInterface = useEditorInterface();
+
+  const canvasContext = useCanvasContext();
 
   // initial state
   // ---------------------------------------------------------------------------
@@ -599,6 +604,31 @@ const ExcalidrawWrapper = () => {
   }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode]);
 
   useEffect(() => {
+    const loadCanvasData = async () => {
+      if (excalidrawAPI && canvasContext.canvasId) {
+        const data = await CanvasManager.getCanvasData(canvasContext.canvasId);
+        if (data) {
+          if (data.files) {
+            excalidrawAPI.addFiles(Object.values(data.files));
+          }
+          excalidrawAPI.updateScene({
+            elements: data.elements,
+            appState: {
+              ...getDefaultAppState(),
+              ...(data.appState as any),
+              isLoading: false,
+            },
+            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+          });
+          // Clear history to prevent undoing into previous canvas
+          excalidrawAPI.history.clear();
+        }
+      }
+    };
+    loadCanvasData();
+  }, [canvasContext.canvasId, excalidrawAPI]);
+
+  useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
       LocalData.flushSave();
 
@@ -623,6 +653,28 @@ const ExcalidrawWrapper = () => {
     };
   }, [excalidrawAPI]);
 
+  /* eslint-disable react-hooks/exhaustive-deps */
+  const debouncedSaveRef = useRef(
+    debounce((id: string, elements: readonly OrderedExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
+      CanvasManager.saveCanvas(id, elements, appState, files);
+    }, 1000),
+  );
+
+  const debouncedThumbnailRef = useRef(
+    debounce(async (id: string, elements: readonly OrderedExcalidrawElement[], files: BinaryFiles) => {
+      // Filter to non-deleted elements for thumbnail generation
+      const visibleElements = elements.filter((el) => !el.isDeleted);
+      if (visibleElements.length === 0) {
+        return;
+      }
+      const thumbnail = await generateThumbnail(visibleElements, files);
+      if (thumbnail) {
+        CanvasManager.updateThumbnail(id, thumbnail);
+      }
+    }, 3000),
+  );
+  /* eslint-enable react-hooks/exhaustive-deps */
+
   const onChange = (
     elements: readonly OrderedExcalidrawElement[],
     appState: AppState,
@@ -630,6 +682,11 @@ const ExcalidrawWrapper = () => {
   ) => {
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
+    }
+
+    if (canvasContext.canvasId) {
+      debouncedSaveRef.current(canvasContext.canvasId, elements, appState, files);
+      debouncedThumbnailRef.current(canvasContext.canvasId, elements, files);
     }
 
     // this check is redundant, but since this is a hot path, it's best
@@ -824,6 +881,7 @@ const ExcalidrawWrapper = () => {
           theme={appTheme}
           setTheme={(theme) => setAppTheme(theme)}
           refresh={() => forceRefresh((prev) => !prev)}
+          onNavigateToDashboard={canvasContext.onNavigateToDashboard}
         />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
@@ -987,7 +1045,12 @@ const ExcalidrawWrapper = () => {
   );
 };
 
-const ExcalidrawApp = () => {
+interface ExcalidrawAppProps {
+  canvasId?: string | null;
+  onNavigateToDashboard?: () => void;
+}
+
+const ExcalidrawApp = ({ canvasId, onNavigateToDashboard }: ExcalidrawAppProps) => {
   // const isCloudExportWindow =
   //   window.location.pathname === "/excalidraw-plus-export";
   // if (isCloudExportWindow) {
@@ -997,10 +1060,13 @@ const ExcalidrawApp = () => {
   return (
     <TopErrorBoundary>
       <Provider store={appJotaiStore}>
-        <ExcalidrawWrapper />
+        <CanvasContext.Provider value={{ canvasId: canvasId || null, onNavigateToDashboard: onNavigateToDashboard || (() => { }) }}>
+          <ExcalidrawWrapper />
+        </CanvasContext.Provider>
       </Provider>
     </TopErrorBoundary>
   );
 };
 
 export default ExcalidrawApp;
+

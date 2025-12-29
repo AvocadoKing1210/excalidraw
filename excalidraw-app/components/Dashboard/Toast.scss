@@ -1,0 +1,40 @@
+@import "../../../packages/excalidraw/css/variables.module.scss";
+
+.dashboard-toast {
+    position: fixed;
+    bottom: 3rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--color-gray-100);
+    color: var(--color-surface-lowest);
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--border-radius-lg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    z-index: 999999;
+    animation: toast-slide-up 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--ui-font);
+    font-size: 0.9rem;
+    font-weight: 500;
+    pointer-events: none; // Allow clicking through if needed, though usually toasts block clicks on them. Let's keep it clickable but maybe safely positioned.
+    // Actually remove pointer-events: none because we might want to interact with it later (close button)
+}
+
+.dashboard-toast__content {
+    display: flex;
+    align-items: center;
+}
+
+@keyframes toast-slide-up {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}

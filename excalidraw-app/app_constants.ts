@@ -42,10 +42,13 @@ export const STORAGE_KEYS = {
   LOCAL_STORAGE_COLLAB: "excalidraw-collab",
   LOCAL_STORAGE_THEME: "excalidraw-theme",
   LOCAL_STORAGE_DEBUG: "excalidraw-debug",
+  LOCAL_STORAGE_ACTIVE_CANVAS: "excalidraw-active-canvas",
   VERSION_DATA_STATE: "version-dataState",
   VERSION_FILES: "version-files",
 
   IDB_LIBRARY: "excalidraw-library",
+  IDB_CANVASES: "excalidraw-canvases",
+  IDB_CANVAS_DATA: "excalidraw-canvas-data",
 
   // do not use apart from migrations
   __LEGACY_LOCAL_STORAGE_LIBRARY: "excalidraw-library",
