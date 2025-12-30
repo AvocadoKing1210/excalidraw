@@ -6,6 +6,7 @@ import "../excalidraw-app/sentry";
 
 import ExcalidrawApp from "./App";
 import { Dashboard } from "./components/Dashboard/Dashboard";
+import { AuthProvider, useAuth, LoginPage } from "./components/Auth";
 import { CanvasManager } from "./data/CanvasManager";
 import { Provider } from "./app-jotai";
 
@@ -13,12 +14,40 @@ import "./index.scss";
 
 window.__EXCALIDRAW_SHA__ = import.meta.env.VITE_APP_GIT_SHA;
 
-const AppRouter = () => {
+// Loading spinner component
+const LoadingSpinner = () => (
+  <div style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: "100vh",
+    background: "linear-gradient(135deg, #0d0d12 0%, #1a1a2e 50%, #16213e 100%)",
+  }}>
+    <div style={{
+      width: 40,
+      height: 40,
+      border: "3px solid #333",
+      borderTopColor: "#6965db",
+      borderRadius: "50%",
+      animation: "spin 0.8s linear infinite",
+    }} />
+  </div>
+);
+
+// Protected app content that requires authentication
+const ProtectedApp = () => {
+  const { user, loading: authLoading } = useAuth();
   const [route, setRoute] = useState(window.location.pathname);
   const [canvasId, setCanvasId] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    // Only initialize canvas when user is authenticated
+    if (!user) {
+      setInitialized(false);
+      return;
+    }
+
     // Initialize canvas manager and get active canvas
     CanvasManager.initialize().then((id) => {
       // Check URL for canvas param
@@ -46,7 +75,7 @@ const AppRouter = () => {
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [user]);
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, "", path);
@@ -66,25 +95,19 @@ const AppRouter = () => {
     navigateTo(`/?canvas=${id}`);
   };
 
+  // Show loading while checking auth
+  if (authLoading) {
+    return <LoadingSpinner />;
+  }
+
+  // Show login page if not authenticated
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  // Show loading while initializing canvas
   if (!initialized) {
-    return (
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100vh",
-        background: "var(--color-surface-lowest, #1e1e1e)",
-      }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          border: "3px solid #333",
-          borderTopColor: "#6965db",
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-        }} />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   // Dashboard route
@@ -98,6 +121,15 @@ const AppRouter = () => {
 
   // Main app with canvas
   return <ExcalidrawApp canvasId={canvasId} onNavigateToDashboard={() => navigateTo("/dashboard")} />;
+};
+
+// Main app wrapper with auth provider
+const AppRouter = () => {
+  return (
+    <AuthProvider>
+      <ProtectedApp />
+    </AuthProvider>
+  );
 };
 
 const rootElement = document.getElementById("root")!;

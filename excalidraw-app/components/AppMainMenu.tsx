@@ -11,10 +11,30 @@ import { isDevEnv } from "@excalidraw/common";
 
 import type { Theme } from "@excalidraw/element/types";
 
+import { useAuth } from "./Auth";
+
 // import { LanguageList } from "../app-language/LanguageList";
 // import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 // import { saveDebugState } from "./DebugCanvas";
+
+// Sign out icon
+const SignOutIcon = (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
 
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
@@ -25,6 +45,12 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   onNavigateToDashboard?: () => void;
 }> = React.memo((props) => {
+  const { signOut, user } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <MainMenu>
       <MainMenu.DefaultItems.LoadScene />
@@ -59,6 +85,18 @@ export const AppMainMenu: React.FC<{
       />
 
       <MainMenu.DefaultItems.ChangeCanvasBackground />
+
+      {user && (
+        <>
+          <MainMenu.Separator />
+          <MainMenu.Item
+            icon={SignOutIcon}
+            onSelect={handleSignOut}
+          >
+            Sign Out
+          </MainMenu.Item>
+        </>
+      )}
     </MainMenu>
   );
 });
